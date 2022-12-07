@@ -18,6 +18,13 @@ class Element:
     parent: Element | None = None
 
     def __eq__(self, __o: object) -> bool:
+        """
+        TODO: remove completely
+        def handle_endtag(self, tag: str) -> None:
+            ...
+                self.index = self.currrent_tags.index(tag)  # type: ignore
+            ...
+        """
         if isinstance(__o, str):
             return __o == self.tag
         return super().__eq__(__o)
@@ -202,11 +209,22 @@ class Scraper(HTMLParser):
         (parent)
         """
         classes, tags, attrs, id, data, parent = self.parse_query(query)
+        base_elements = self._get(classes, tags, attrs, id, data)
         while parent:
-            self._get(parent[0], parent[1], parent[2], parent[3], parent[4])
+            possible_parents = self._get(
+                parent[0], parent[1], parent[2], parent[3], parent[4]
+            )
+            for base_element in base_elements:
+                found = False
+                for possible_parent in possible_parents:
+                    if base_element in possible_parent.inner_html:
+                        found = True
+                        break
+                if not found:
+                    base_elements.remove(base_element)
             parent = parent[-1]
         print(classes, tags, attrs, id, data)
-        return self._get(classes, tags, attrs, id, data)
+        return base_elements
 
     def scrape(
         self, url: str | list[str], headers: MutableMapping[str, str] = {}

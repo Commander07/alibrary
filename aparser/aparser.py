@@ -73,15 +73,26 @@ class Parser:
             if arg.startswith("--"):
                 arg = arg.replace("--", "")
                 value = ""
-                if arg == "help" or arg == "h":
-                    print(self.usage())
-                    exit(0)
                 if "=" in arg:
                     try:
                         arg, value = arg.split("=")
                     except ValueError:
                         print(self.usage())
                         exit(1)
+                if arg == "help" or arg == "h":
+                    if value:
+                        options = [
+                            option
+                            for option in self.options
+                            if value in option.name or value in option.description
+                        ]
+                        _usage = "options:"
+                        for option in options:
+                            _usage += f"\n --{option.name}{f'=<{option.argument}>' if option.argument else ''}\t{option.description}"
+                        print(_usage)
+                    else:
+                        print(self.usage())
+                    exit(0)
                 if arg not in self.options and arg.replace("no-", "") not in self.options:  # type: ignore
                     print(self.usage())
                     exit(1)
@@ -96,7 +107,7 @@ class Parser:
                         data[arg] = value
                     else:
                         data[arg] = True
-                if not data.get(arg):
+                if data.get(arg) is None:
                     print(self.usage())
                     exit(1)
             else:
