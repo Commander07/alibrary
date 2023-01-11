@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
-from typing import BinaryIO
+from typing import Any, BinaryIO
 
 
 @dataclass
 class Option:
     name: str
     description: str
-    argument: str | None = None
+    argument: type = str
+    default: Any = None
 
     def __eq__(self, __o: object) -> bool:
         if isinstance(__o, str):
@@ -39,7 +40,7 @@ class Parser:
                 Option(
                     "help",
                     "print options which contain the given string in their name",
-                    argument="string",
+                    argument=str,
                 )
             ]
             + options
@@ -64,7 +65,7 @@ class Parser:
         if self.options:
             _usage += "\noptions:"
             for option in self.options:
-                _usage += f"\n --{option.name}{f'=<{option.argument}>' if option.argument else ''}\t{option.description}"
+                _usage += f"\n --{option.name}{f'=<{option.argument.__name__}>' if option.argument else ''}\t{option.description}"
         return _usage
 
     def parse(self) -> dict[str, str | bool | BinaryIO]:
@@ -104,7 +105,15 @@ class Parser:
                     data[arg] = False
                 else:
                     if value:
-                        data[arg] = value
+                        try:
+                            data[arg] = [
+                                option.argument
+                                for option in self.options
+                                if option.name == arg
+                            ][0](value)
+                        except ValueError:
+                            print(self.usage())
+                            exit(1)
                     else:
                         data[arg] = True
                 if data.get(arg) is None:
@@ -129,4 +138,7 @@ class Parser:
             if not data.get("data") and self.data.required:
                 print(self.usage())
                 exit(1)
+        for option in self.options:
+            if option.name not in data and option.default:
+                data[option.name] = option.default
         return data
