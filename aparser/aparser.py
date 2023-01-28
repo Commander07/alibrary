@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
-from typing import Any, BinaryIO
+from typing import Any, Callable
 
 
 @dataclass
@@ -11,11 +11,15 @@ class Option:
     description: str
     argument: type = str
     default: Any = None
+    validator: Callable[[Any], bool] | None = None
 
     def __eq__(self, __o: object) -> bool:
         if isinstance(__o, str):
             return __o == self.name
         return super().__eq__(__o)
+
+    def __post_init__(self) -> None:
+        assert not self.name.startswith("__"), "Name cannot start with dunder"
 
 
 @dataclass
@@ -23,6 +27,26 @@ class Data:
     name: str
     required: bool = True
     file: bool = False
+    validator: Callable[[Any], bool] | None = None
+
+    def __post_init__(self) -> None:
+        assert not self.name.startswith("__"), "Name cannot start with dunder"
+
+
+class ReturnData:
+    def __init__(self) -> None:
+        self.__names__: dict[str, type] = {}
+
+    def __repr__(self) -> str:
+        copy: dict[str, tuple[str, Any]] = {}
+        for name in self.__names__:
+            copy[name] = (self.__names__[name].__name__, getattr(self, name))
+        return copy.__repr__()
+
+    def __setattr__(self, __name: str, __value: Any) -> None:
+        if hasattr(self, "__names__"):
+            self.__names__[__name] = type(__value)
+        return super(ReturnData, self).__setattr__(__name, __value)
 
 
 class Parser:
@@ -68,8 +92,8 @@ class Parser:
                 _usage += f"\n --{option.name}{f'=<{option.argument.__name__}>' if option.argument else ''}\t{option.description}"
         return _usage
 
-    def parse(self) -> dict[str, str | bool | BinaryIO]:
-        data: dict[str, str | bool | BinaryIO] = {}
+    def parse(self) -> ReturnData:
+        data = ReturnData()
         for i, arg in enumerate(self.args):
             if arg.startswith("--"):
                 arg = arg.replace("--", "")
@@ -102,21 +126,25 @@ class Parser:
                         print(self.usage())
                         exit(1)
                     arg = arg.replace("no-", "")
-                    data[arg] = False
+                    setattr(data, arg, False)
                 else:
                     if value:
                         try:
-                            data[arg] = [
-                                option.argument
-                                for option in self.options
-                                if option.name == arg
-                            ][0](value)
+                            opt = [
+                                option for option in self.options if option.name == arg
+                            ]
+                            _type = opt[0].argument
+                            setattr(
+                                data,
+                                arg,
+                                _type(value),
+                            )
                         except ValueError:
                             print(self.usage())
                             exit(1)
                     else:
-                        data[arg] = True
-                if data.get(arg) is None:
+                        setattr(data, arg, True)
+                if getattr(data, arg) is None:
                     print(self.usage())
                     exit(1)
             else:
@@ -124,21 +152,21 @@ class Parser:
                     _data = " ".join(self.args[i : len(self.args)])
                     if self.data.file:
                         try:
-                            data["data"] = open(_data, "rb+")
+                            setattr(data, arg, open(_data, "rb+"))
                         except FileNotFoundError:
                             print(f"Cannot open file '{_data}': No such file")
                             exit(1)
                     else:
-                        data["data"] = _data
+                        setattr(data, arg, _data)
                     break
                 else:
                     print(self.usage())
                     exit(1)
         if self.data:
-            if not data.get("data") and self.data.required:
+            if not getattr(data, "data") and self.data.required:
                 print(self.usage())
                 exit(1)
         for option in self.options:
-            if option.name not in data and option.default:
-                data[option.name] = option.default
+            if option.name not in data.__names__ and option.default:
+                setattr(data, option.name, option.default)
         return data
