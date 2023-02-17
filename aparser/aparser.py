@@ -157,13 +157,13 @@ class Parser:
                             print(f"Cannot open file '{_data}': No such file")
                             exit(1)
                     else:
-                        setattr(data, arg, _data)
+                        setattr(data, self.data.name, _data)
                     break
                 else:
                     print(self.usage())
                     exit(1)
         if self.data:
-            if not getattr(data, "data") and self.data.required:
+            if not getattr(data, self.data.name, None) and self.data.required:
                 print(self.usage())
                 exit(1)
         for option in self.options:

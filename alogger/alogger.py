@@ -33,7 +33,7 @@ class __config__:
     def __setattr__(self, __name: str, __value: Any) -> None:
         super().__setattr__(__name, __value)
         with open("alogger.json", "w") as f:
-            json.dump(self, f)
+            json.dump(self.__dict__, f)
 
 
 __config_obj__ = __config__()
